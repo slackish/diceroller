@@ -47,6 +47,7 @@ def testroll(msg):
     return parse_roll(msg)
 
 @app.route('/roller/<uid>/ws')
+@app.route('/viewer/<uid>/ws')
 def ws(uid):
     """
     websocket code
@@ -120,42 +121,50 @@ def parse_roll(msg):
     try:
         if "," in msg:
             for msg_part in msg.split(","):
-                dice.extend(parse_dice_msg(msg_part))
+                dice.append(parse_dice_msg(msg_part))
         else:
-            dice.extend(parse_dice_msg(msg))
+            dice.append(parse_dice_msg(msg))
     except Exception:
         return None
 
-    results = perform_roll(dice)
-    return format_roll(msg, results)
+    return perform_and_format_roll(msg, dice)
 
 
-def format_roll(msg, results):
-    retstr = [msg, ": "]
-
-    if len(results) == 1:
-        retstr.append("%d" % results[0])
-    else:
-        total = sum(results)
-        results = map(str, results)
-        retstr.append("%s = %d" % (" + ".join(results), total))
-
-    return "".join(retstr)
-
-
-def perform_roll(dice):
+def perform_and_format_roll(msg, dice):
     results = []
-    for die in dice:
-        results.append(random.randint(1, die))
-    return results
+    total = 0
+    for rolls in dice:
+        die = int(rolls['die'])
+        midresult = []
+
+        if rolls['modifier']:
+            midresult.append("((")
+
+        dierolls = []
+        for i in xrange(int(rolls['quantity'])):
+            dierolls.append(random.randint(1, die))
+        total += sum(dierolls)
+        dierolls = map(str, dierolls)
+        midresult.append(" + ".join(dierolls))
+
+        if rolls['modifier']:
+            midresult.append(")")
+            midresult.append(rolls['modifier'])
+            midresult.append(")")
+            total += int(rolls['modifier'])
+        results.append(" ".join(midresult))
+
+     
+    return "%s: %s = %d" % (msg, " + ".join(results), total)
 
 
 def parse_dice_msg(msg):
-    """ msg format here should be [0-9]+d[0-9]+ """
+    """ msg format here should be [0-9]+d[0-9]+([+-][0-9]+)? """
 
     msg = msg.strip().lower()
-    if re.match("[0-9]+d[0-9]+", msg):
-        quantity, value = msg.split("d", 1)
+    result = re.match("(?P<quantity>[0-9]+)d(?P<die>[0-9]+)(?P<modifier>[+-][0-9]+)?", msg)
+    if result:
+        return result.groupdict()
     else:
         raise Exception("ugh, not valid dice roll")
 
