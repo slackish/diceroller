@@ -2,24 +2,8 @@
     <div class="container">
 
       <div class="starter-template">
-        <h1>Roll some dice:</h1>
-        <p>So you want to roll some dice, eh?</p>
-        <p>
-        You can specify which dice to roll by saying something like
-        "1d20", which will roll one 20 sided die. 3d6 will roll three 6
-        sided dice.  More complex rolls involving different dice can be
-        done by separating dice by commas. </p>
-
-        <samp>1d20,1d6</samp>
-        Will result in
-        <samp>1d20,2d6: 18 + 4 + 3 = 25</samp>
-
+        <h1>See some dice:</h1>
         <p>Others can view rolls at:<samp><div id="page"></div><samp>
-
-        <form name="rollform" action="" onsubmit="return validateRoll()">
-          <input type="text" id="inputroll" name="chat">
-          <input type="submit" value="submit">
-        </form>
         <p>Roll log: </p>
         <ul>
         <div id="rolls"></div>
@@ -34,19 +18,24 @@
           return false;
       }
 
-      // load some page stuff
-      vieweruri = loc.protocol + loc.host + loc.pathname;
-      vieweruri = vieweruri.replace("roll", "view");
-      $("#page").text(vieweruri);
 
       // well crap, no relative paths to websockets
       var loc = window.location, ws_uri;
       if (loc.protocol === "https:") {
           ws_uri = "wss:";
+          vieweruri = "https:";
       } else {
           ws_uri = "ws:";
+          vieweruri = "http:";
       }
       ws_uri += "//" + loc.host + loc.pathname + "/ws";
+
+      window.onload = function() {
+          // load some page stuff
+          vieweruri += "//" + loc.host + loc.pathname;
+          vieweruri = vieweruri.replace("roll", "view");
+          $("#page").text(vieweruri);
+      }
 
       var ws = new WebSocket(ws_uri);
     
@@ -78,7 +67,7 @@
 
       function append_roll(msg) {
           new_text = "<li>"+msg+"</li>"+ $("#rolls").html();
-          current_text = $("#rolls").html(new_text)
+          $("#rolls").html(new_text);
       }
       </script>
 
