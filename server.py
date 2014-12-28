@@ -46,8 +46,8 @@ def roller(uid):
 def testroll(msg):
     return parse_roll(msg)
 
-@app.route('/roller/<uid>/ws')
-@app.route('/viewer/<uid>/ws')
+@app.route('/ws/roller/<uid>')
+@app.route('/ws/viewer/<uid>')
 def ws(uid):
     """
     websocket code
@@ -55,6 +55,8 @@ def ws(uid):
     print >>sys.stderr, "websocket called"
     wsock = request.environ.get('wsgi.websocket')
     if not wsock:
+        print >>sys.stderr, "no websock environ"
+        print >>sys.stderr, request.environ
         abort(400, 'Expected WebSocket request.')
 
     if uid not in clients.keys():
@@ -63,7 +65,9 @@ def ws(uid):
 
     while True:
         try:
+            print >>sys.stderr, "waiting for msg"
             message = wsock.receive()
+            print >>sys.stderr, "msg received"
             if message != None:
                 handle_ws(uid, message, wsock)
             else:
@@ -75,6 +79,7 @@ def ws(uid):
             if len(clients[uid]) == 0:
                 del(clients[uid])
             break
+    print >>sys.stderr, "websock destroyed"
 
     
 #####################################################################
@@ -189,6 +194,6 @@ def parse_dice_msg(msg):
 from gevent.pywsgi import WSGIServer
 from geventwebsocket import WebSocketError
 from geventwebsocket.handler import WebSocketHandler
-server = WSGIServer(("0.0.0.0", 8080), app,
+server = WSGIServer(("127.0.0.1", 8080), app,
                     handler_class=WebSocketHandler)
 server.serve_forever()
