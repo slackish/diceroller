@@ -3,21 +3,40 @@
 import os
 import random
 import re
+import signal
 import sys
 import time
 import traceback
 
 from bottle import route, run, template, static_file, abort, Bottle, request, redirect
+from threading import Semaphore
+
+import counter
 
 clients = {}
 current_message = ""
 
 #####################################################################
 #
+# Signal Handlers
+#
+#####################################################################
+
+def quit_handler(signum, frame):
+    """ save dice roller state """
+    pass
+
+
+#####################################################################
+#
 # Bottle Routing
 #
 #####################################################################
+# initialization bits
 app = Bottle()
+die_lock = Semaphore()
+dice_stats = counter.Dice_Roll_Stats()
+
 
 @app.route('/')
 @app.route('/create')
@@ -46,6 +65,10 @@ def roller(uid):
 def testroll(msg):
     return parse_roll(msg)
 
+@app.route('/test/stats')
+def stats():
+    return dice_stats.grab_stats(True)
+
 @app.route('/ws/roller/<uid>')
 @app.route('/ws/viewer/<uid>')
 def ws(uid):
@@ -59,7 +82,7 @@ def ws(uid):
         print >>sys.stderr, request.environ
         abort(400, 'Expected WebSocket request.')
 
-    if uid not in clients.keys():
+    if not clients.has_key(uid):
         clients[uid] = []
     clients[uid].append(wsock)
 
@@ -71,13 +94,21 @@ def ws(uid):
             if message != None:
                 handle_ws(uid, message, wsock)
             else:
-                clients[uid].remove(wsock)
+                try:
+                    clients[uid].remove(wsock)
+                except ValueError:
+                    pass
                 if len(clients[uid]) == 0:
                     del(clients[uid])
         except WebSocketError:
-            clients[uid].remove(wsock)
-            if len(clients[uid]) == 0:
-                del(clients[uid])
+            try:
+                clients[uid].remove(wsock)
+                if len(clients[uid]) == 0:
+                    del(clients[uid])
+            except ValueError:
+                pass # already cleaned up
+            except KeyError:
+                pass # already cleaned up
             break
     print >>sys.stderr, "websock destroyed"
 
@@ -146,8 +177,18 @@ def perform_and_format_roll(msg, dice):
             midresult.append("((")
 
         dierolls = []
+        save_dice = (die == 20)
         for i in xrange(int(rolls['quantity'])):
-            dierolls.append(random.randint(1, die))
+            rolled = random.randint(1, die)
+            dierolls.append(rolled)
+            if save_dice:
+                try:
+                    die_lock.acquire()
+                    dice_stats.increment(rolled)
+                    die_lock.release()
+                except:
+                    print traceback.format_exc()
+
         total += sum(dierolls)
         dierolls = map(str, dierolls)
         midresult.append(" + ".join(dierolls))
